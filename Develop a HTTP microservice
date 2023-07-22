@@ -1,1 +1,32 @@
+from flask import Flask, request, jsonify
+import asyncio
+import aiohttp
 
+app = Flask(__name__)
+
+async def fetch_numbers(url):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if 'numbers' in data:
+                        return data['numbers']
+    except aiohttp.ClientError:
+        pass
+
+    return []
+
+@app.route('/numbers', methods=['GET'])
+async def get_numbers():
+    urls = request.args.getlist('urI')
+
+    tasks = [fetch_numbers(url) for url in urls]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    merged_numbers = sorted(set(number for sublist in results if isinstance(sublist, list) for number in sublist))
+
+    return jsonify({"numbers": merged_numbers})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8008)
